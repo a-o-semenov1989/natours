@@ -1,14 +1,19 @@
 const express = require('express');
-const tourController = require('./../controllers/tourController'); //импортируем объект, своиствами которого являются функции
+const tourController = require('../controllers/tourController'); //импортируем объект, своиствами которого являются функции
 
 const router = express.Router();
 
-router.param('id', tourController.checkID); //указываем 1 аргументом параметр, которыи мы ищем и для которого этот middleware запустится и 2 - middleware функцию (в неи три аргумента - req, res, next и 4-и значение параметра)
+router
+  .route('/top-5-cheap') //когда пользователь пройдет по этому роуту
+  .get(tourController.aliasTopTours, tourController.getAllTours); //сначала запустится middleware aliasTopTours и эта функция выставит все нужные для показа топ 5 туров свойства в query object, затем все туры с нужными query getAllTours
+
+router.route('/tour-stats').get(tourController.getTourStats);
+router.route('/monthly-plan/:year').get(tourController.getMonthlyPlan);
 
 router
   .route('/') //это рут URL /api/v1/tours поэтому просто /
   .get(tourController.getAllTours)
-  .post(tourController.checkBody, tourController.createTour); //сначала 1 middleware, затем 2
+  .post(tourController.createTour);
 
 router
   .route('/:id')

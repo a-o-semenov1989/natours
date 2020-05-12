@@ -6,7 +6,7 @@ const userRouter = require('./routes/userRoutes');
 
 const app = express(); //к переменнои app добавятся методы из экспресс
 
-//MIDDLEWARES //применяются ко всем routes 67 10:26
+//MIDDLEWARES //применяются ко всем routes
 //console.log(process.env.NODE_ENV); //production или development
 if (process.env.NODE_ENV === 'development') {
   //только в случае запуска приложения в режиме разработки
