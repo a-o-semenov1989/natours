@@ -40,7 +40,7 @@ exports.getAllTours = async (req, res) => {
 exports.getTour = async (req, res) => {
   try {
     const tour = await Tour.findById(req.params.id); //используем метод findById, id берем из роута req.params.id // Tour.findOne({ _id: req.params.id})
-
+    //Tour.findOne({ _id: req.params.id }); //behind the scenes
     res.status(200).json({
       status: 'success',
       data: {
