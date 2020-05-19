@@ -51,7 +51,7 @@ const tourSchema = new mongoose.Schema(
       validate: {
         //кастомныи валидатор, принимает функцию
         validator: function (val) {
-          return val < this.price; //возвращает true or false //this - указывает на текущии документ, когда мы создаем новыи документ. Не будет работать с update
+          return val < this.price; //возвращает true or false //this - указывает на текущии документ, когда мы создаем новыи документ. Работает с save и create. Не будет работать с update
         },
         message: 'Discount price ({VALUE}) should be below regular price', //у сообщения есть доступ к val в mongoose, val = ({VALUE})
       },
