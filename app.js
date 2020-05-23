@@ -21,6 +21,7 @@ app.use(express.static(`${__dirname}/public`)); //в браузере можно
 app.use((req, res, next) => {
   //без указания route этот middleware будет применен ко всем запросам //middleware определяются до route handlers в коде
   //middleware, все имеют доступ к запросу и ответу, а также передается next (можно назвать по-другому) - тогда express будет знать что это middleware
+  //console.log(req.headers); //показать хедер запроса
   req.requestTime = new Date().toISOString(); //ко всем реквестам добавится время //new Date = сейчас, toISOString сделает читабельную строку
   next(); //если не использовать next в middleware - не будет завершен цикл запрос/ответ и ответ не будет отправлен клиенту
 });

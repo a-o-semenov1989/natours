@@ -5,6 +5,7 @@ const authController = require('../controllers/authController');
 const router = express.Router();
 
 router.post('/signup', authController.signup); //в данном случае нужен только пост // исключение из REST
+router.post('/login', authController.login);
 
 router
   .route('/')

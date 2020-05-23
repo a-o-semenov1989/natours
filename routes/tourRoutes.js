@@ -1,5 +1,6 @@
 const express = require('express');
 const tourController = require('../controllers/tourController'); //импортируем объект, своиствами которого являются функции
+const authController = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ router.route('/monthly-plan/:year').get(tourController.getMonthlyPlan);
 
 router
   .route('/') //это рут URL /api/v1/tours поэтому просто /
-  .get(tourController.getAllTours)
+  .get(authController.protect, tourController.getAllTours)
   .post(tourController.createTour);
 
 router

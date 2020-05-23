@@ -21,6 +21,12 @@ const handleValidationErrorDB = (err) => {
   return new AppError(message, 400);
 };
 
+const handleJWTError = () =>
+  new AppError('Invalid token! Plesase log in again.', 401);
+
+const handleJWTExpiredError = () =>
+  new AppError('Your token has expired! Please log in again.', 401);
+
 const sendErrorDev = (err, res) => {
   //передаем err и res, res чтобы отправить ответ
   res.status(err.statusCode).json({
@@ -64,6 +70,8 @@ module.exports = (err, req, res, next) => {
     if (error.code === 11000) error = handleDuplicateFieldsDB(error); //код ошибки MongoDB одинаковое имя, валидатор unique (увидели code в err в консоли или postman)
     if (error.name === 'ValidationError')
       error = handleValidationErrorDB(error);
+    if (error.name === 'JsonWebTokenError') error = handleJWTError();
+    if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
     sendErrorProd(error, res);
   }
 }; //4 аргумента - express узнает что это error handling middleware - вызовется только в случае ошибки

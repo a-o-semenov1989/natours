@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Plesase provide a password'],
     minlength: [8, 'A password must be at least 8 characters'],
+    select: false, //так не покажет пароль по запросу к API
   },
   passwordConfirm: {
     type: String,
@@ -32,6 +33,7 @@ const userSchema = new mongoose.Schema({
       message: 'Passwords are not the same!',
     },
   },
+  passwordChangedAt: Date,
 });
 
 userSchema.pre('save', async function (next) {
@@ -44,6 +46,30 @@ userSchema.pre('save', async function (next) {
   this.passwordConfirm = undefined; //удаляем поле с проверочным паролем, чтобы он не сохранился в БД, оригинальный уже хэширован //он required для инпута, а не для сохранения в БД
   next();
 });
+
+//instance method - доступен на всех документах конкретной коллекции
+userSchema.methods.correctPassword = async function (
+  candidatePassword,
+  userPassword
+) {
+  //принимает пароль переданный при логине и пароль из БД
+  return await bcrypt.compare(candidatePassword, userPassword); //this.password - не доступен, потому что у password select: false //candidatePassword не хэширован, поэтому мы не можем сравнить напрямую //compare возвращает true или false
+};
+
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimestamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10
+    ); //дату в таймстамп конвертируем для сравнения в секунды, делим на 1000 чтобы получить милисекунды
+
+    //console.log(changedTimestamp, JWTTimestamp);
+    return JWTTimestamp < changedTimestamp; //если время выпуска токена было раньше чем изменения пароля - вернуть true
+  }
+  //this - текущий документ //если поле passwordChangedAt существует - проводим сравнение, если поля не существует - пользователь не менял пароль
+
+  return false;
+}; //по умолчанию возвращается false, что значит что пользователь не менял пароль после выписки токена
 
 const User = mongoose.model('User', userSchema); //создаем модель, передается нужное имя и схема
 
