@@ -1,3 +1,4 @@
+const crypto = require('crypto'); //встроенный модуль
 const mongoose = require('mongoose');
 const validator = require('validator'); //библиотека с валидаторами и санитаизерами
 const bcrypt = require('bcryptjs'); //библиотека для шифрования
@@ -16,6 +17,11 @@ const userSchema = new mongoose.Schema({
     validate: [validator.isEmail, 'Please provide a valid email'],
   },
   photo: String,
+  role: {
+    type: String,
+    enum: ['user', 'guide', 'lead-guide', 'admin'],
+    default: 'user',
+  },
   password: {
     type: String,
     required: [true, 'Plesase provide a password'],
@@ -34,6 +40,8 @@ const userSchema = new mongoose.Schema({
     },
   },
   passwordChangedAt: Date,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
 });
 
 userSchema.pre('save', async function (next) {
@@ -44,6 +52,13 @@ userSchema.pre('save', async function (next) {
   this.password = await bcrypt.hash(this.password, 12); //хэшируем пароль //12, 2 агумент - cost parameter для salt, разбавления пароля строкой. насколько CPU intensive будет эта операция //async версия функции, вернет промис
 
   this.passwordConfirm = undefined; //удаляем поле с проверочным паролем, чтобы он не сохранился в БД, оригинальный уже хэширован //он required для инпута, а не для сохранения в БД
+  next();
+});
+
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password') || this.isNew) return next(); //если не модицифицировали своиство password или документ новыи - выити из фыункции и запустить следующии middleware
+
+  this.passwordChangedAt = Date.now() - 1000; //если пароль поменялся - обновить своиство текущим временем //-1 секунда, потому что иногда токен может быть выписан после изменения своиства со временем изменения пароля и тогда клиент не сможет залогинится с этим токеном
   next();
 });
 
@@ -70,6 +85,22 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
 
   return false;
 }; //по умолчанию возвращается false, что значит что пользователь не менял пароль после выписки токена
+
+//instance method - доступен на всех документах конкретной коллекции
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex'); //создаем рандомныи токен с помощью встроенного модуля crypto, передаем количство баит для генерации //конвертируем в hex строку
+
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex'); //хэшируем ресет токен. //не храним plain reset token в ДБ, поскольку злоумышленник может получить к нему доступ и получить доступ к аккаунту
+
+  console.log({ resetToken }, this.passwordResetToken);
+
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; //текущее время + 10 минут в милисекундах (10 минут * 60 секунд * 1000 милисекунд)
+
+  return resetToken; //возвращаем ресет токен для дальнеишеи отправки. зашифрованныи хранится в БД, а не зашифрованныи отправляется клиенту для дальнеишего сравнения
+};
 
 const User = mongoose.model('User', userSchema); //создаем модель, передается нужное имя и схема
 

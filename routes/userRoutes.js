@@ -7,6 +7,9 @@ const router = express.Router();
 router.post('/signup', authController.signup); //в данном случае нужен только пост // исключение из REST
 router.post('/login', authController.login);
 
+router.post('/forgotPassword', authController.forgotPassword);
+router.patch('/resetPassword/:token', authController.resetPassword);
+
 router
   .route('/')
   .get(userController.getAllUsers)

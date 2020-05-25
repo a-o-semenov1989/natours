@@ -20,6 +20,10 @@ router
   .route('/:id')
   .get(tourController.getTour)
   .patch(tourController.updateTour)
-  .delete(tourController.deleteTour);
+  .delete(
+    authController.protect, //сначала протект вызывается - проверяем аутентификацию
+    authController.restrictTo('admin', 'lead-guide'), //передаем в функцию-обертку роли которые имеют доступ //функция вернет middleware, которои будут доступны роли по замыканию
+    tourController.deleteTour
+  ); //1 middleware в стэке - протект, мы должны проверить залогинен ли пользователь, 2 - функция restrictTo(), в нее передаем роль пользователя. нужно определить его полномочия, 3 - выполнение операции
 
 module.exports = router;

@@ -1,8 +1,10 @@
+const crypto = require('crypto');
 const { promisify } = require('util'); //встроенный модуль импортируем промисификацию
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync'); //чтобы не писать try-catch block используем catchAsync
 const AppError = require('../utils/appError');
+const sendEmail = require('../utils/email');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -16,7 +18,6 @@ exports.signup = catchAsync(async (req, res, next) => {
     email: req.body.email,
     password: req.body.password,
     passwordConfirm: req.body.passwordConfirm,
-    passwordChangedAt: req.body.passwordChangedAt,
     photo: req.body.photo,
   }); //данные получаем из req.body и создаем нового пользователя по нашей модели, которая базируется на схеме //нельзя просто req.body, нужно указывать какие именно поля, которые мы позволяем и которые нужно положить в нового пользователя, так пользователь не сможет зарегистрироваться как админ, поскольку поле с ролью не пойдет в newUser
 
@@ -94,6 +95,97 @@ exports.protect = catchAsync(async (req, res, next) => {
     );
   } //iat - issued at, когда выписан токен
 
-  req.user = currentUser; //присваиваем данные
+  req.user = currentUser; //присваиваем данные и сохраняем для передачи в следующии middleware
   next(); //В случае если все проверки выше успешны - next() вызовется и даст доступ к защищенным роутам
+});
+
+exports.restrictTo = (...roles) => {
+  //создаст массив аргументов, которые мы указываем //оборачиваем в функцию чтобы передать аргументы в middleware, напрямую нельзя
+  return (req, res, next) => {
+    //возвращаем новую функцию - сама middleware функция //получит доступ к параметру (массиву ['admin', 'lead-guide']) roles по замыканию.
+    if (!roles.includes(req.user.role)) {
+      //Если роль пользователя не содержится в этом массиве, например 'user', - не получит доступ. includes() - array method //роль пользователя содержится в req.user - полученном из предыдущего middleware protect
+      return next(
+        new AppError('You do not have permission to perform this action', 403)
+      ); //403 - forbidden
+    }
+
+    next(); //если все ок - next
+  };
+};
+
+exports.forgotPassword = catchAsync(async (req, res, next) => {
+  //1) Получить пользователя основываясь на POSTed email
+  const user = await User.findOne({ email: req.body.email }); //не по id потому что id не известен
+  if (!user) {
+    return next(new AppError('There is no user with this email address.', 404));
+  }
+  //2) Сгенерировать случаиныи reset token
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false }); //сохраняем //валидаторы не будут проверять перед сохранением, поскольку мы не можем указать пароль - валидацию мы не смогли бы проити
+
+  //3) Отправить пользователю по email
+  const resetURL = `${req.protocol}://${req.get(
+    'host'
+  )}/api/v1/users/resetPassword/${resetToken}`; //сначала протокол http или https, берем из запроса, //хост //url // token
+
+  const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to: ${resetURL}.\nIf you didn't forget your password, please ignore this email!`;
+
+  try {
+    //нужен try catch блок, поскольку мы не просто отправляем эррор клиенту
+    await sendEmail({
+      //вернет промис
+      email: user.email,
+      subject: 'Your password reset token (valid for 10 min)',
+      message,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Token sent to email!', //токен отправляем на имеил, а не json-ом
+    });
+  } catch (err) {
+    user.passwordResetToken = undefined; //убираем токен из БД
+    user.passwordResetExpires = undefined; //убираем
+    await user.save({ validateBeforeSave: false }); //сохраняем в БД изменения
+
+    return next(
+      new AppError('There was an error sending the email. Try again later!'),
+      500 //500 - ошибка на сервере
+    );
+  }
+});
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  //1) Получить пользователя основываясь на токене
+  //Хешируем токен чтобы сравнить с токеном хранящимся в БД в хешированном виде
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex'); //req.params.token - в парамс, поскольку мы указываем его в URL '/resetPassword/:token'
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken, // ищем в БД по хешированному токену
+    passwordResetExpires: { $gt: Date.now() }, //проверяем чтобы токен не был просрочен
+  });
+
+  //2) Если токен не просрочен и есть пользователь - установить новыи пароль
+  if (!user) {
+    return next(new AppError('Token is invalid or has expired', 400));
+  }
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save(); //валидторы оставляем включенными, чтобы проверить соответствие пароля и повторного пароля
+
+  //3) Обновить значение changedPasswordAt своиства для пользователя
+  //в userModel
+  //4) Log the user in, отправить JWT клиенту
+  const token = signToken(user._id);
+
+  res.status(200).json({
+    status: 'success',
+    token,
+  });
 });
