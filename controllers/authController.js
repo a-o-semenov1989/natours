@@ -12,6 +12,18 @@ const signToken = (id) => {
   }); //создаем токен. 1 аргумент - Payload, у нас id - { id: id }. 2 аргумент строка - секрет (в config.env - должен быть 32 или больше символов)// 3 token header создатся автоматически, но передадим опции 3 аргументом через сколько токен будет просрочен
 };
 
+const createSendToken = (user, statusCode, res) => {
+  const token = signToken(user._id);
+
+  res.status(statusCode).json({
+    status: 'success',
+    token, //отправляем токен клиенту
+    data: {
+      user, //user: user
+    },
+  });
+};
+
 exports.signup = catchAsync(async (req, res, next) => {
   const newUser = await User.create({
     name: req.body.name,
@@ -20,16 +32,7 @@ exports.signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
     photo: req.body.photo,
   }); //данные получаем из req.body и создаем нового пользователя по нашей модели, которая базируется на схеме //нельзя просто req.body, нужно указывать какие именно поля, которые мы позволяем и которые нужно положить в нового пользователя, так пользователь не сможет зарегистрироваться как админ, поскольку поле с ролью не пойдет в newUser
-
-  const token = signToken(newUser._id);
-
-  res.status(201).json({
-    status: 'success',
-    token, //отправляем токен клиенту
-    data: {
-      user: newUser,
-    },
-  }); //201 - успех. отправляем данные клиенту
+  createSendToken(newUser, 201, res); //201 - успех. отправляем данные клиенту
 });
 
 exports.login = catchAsync(async (req, res, next) => {
@@ -49,12 +52,7 @@ exports.login = catchAsync(async (req, res, next) => {
   }
 
   //3) Если все ок - отправить JWT клиенту
-  const token = signToken(user._id);
-
-  res.status(200).json({
-    status: 'success',
-    token,
-  });
+  createSendToken(user, 200, res);
 });
 
 exports.protect = catchAsync(async (req, res, next) => {
@@ -182,10 +180,23 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   //3) Обновить значение changedPasswordAt своиства для пользователя
   //в userModel
   //4) Log the user in, отправить JWT клиенту
-  const token = signToken(user._id);
+  createSendToken(user, 200, res);
+});
 
-  res.status(200).json({
-    status: 'success',
-    token,
-  });
+exports.updatePassword = catchAsync(async (req, res, next) => {
+  //1) Получить пользователя из коллекции
+  const user = await User.findById(req.user.id).select('+password'); //req.user.id - получено из middleware protect, клиент уже залогинен на данном этапе. //поле password изначально убрано для показа, чтобы получить его в output делаем select('+password')
+
+  //2) Проверить правилен ли переданныи POST запросом текущий пароль
+  if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
+    return next(new AppError('Your current password is wrong', 401));
+  }
+
+  //3) Если он правилен - обновить пароль
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  await user.save();
+
+  //4) Log in user, отправить JWT
+  createSendToken(user, 200, res);
 });
