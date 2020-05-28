@@ -14,6 +14,19 @@ const signToken = (id) => {
 
 const createSendToken = (user, statusCode, res) => {
   const token = signToken(user._id);
+  const cookieOptions = {
+    //делаем переменную с опциями для куки
+    expires: new Date( //expires - через какое время браузер удалит куки
+      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+    ), //нынешняя дата + 90 дней в милисекундах (90 * 24 часа * 60 минут * 60 секунд *1000 милисекунд)
+    httpOnly: true, //куки не могут быть доступны или модифицированы браузером. Браузер может только получить куки, хранить и затем автоматически вместе с каждым запросом
+  };
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true; //Включить только в продакшн режиме secure - куки будут отправлены только по защищенному соединению HTTPS
+
+  res.cookie('jwt', token, cookieOptions); //отправляем куки клиенту, 1 - имя, 2 - данные (у нас токен), 3 - опции
+
+  user.password = undefined; //уберем пароль из ответа
 
   res.status(statusCode).json({
     status: 'success',

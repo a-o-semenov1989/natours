@@ -42,6 +42,11 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: Date,
   passwordResetToken: String,
   passwordResetExpires: Date,
+  active: {
+    type: Boolean,
+    default: true,
+    select: false,
+  },
 });
 
 userSchema.pre('save', async function (next) {
@@ -59,6 +64,13 @@ userSchema.pre('save', function (next) {
   if (!this.isModified('password') || this.isNew) return next(); //если не модицифицировали своиство password или документ новыи - выити из фыункции и запустить следующии middleware
 
   this.passwordChangedAt = Date.now() - 1000; //если пароль поменялся - обновить своиство текущим временем //-1 секунда, потому что иногда токен может быть выписан после изменения своиства со временем изменения пароля и тогда клиент не сможет залогинится с этим токеном
+  next();
+});
+
+userSchema.pre(/^find/, function (next) {
+  //регулярка, все что начинается с файнд //убираем неактивных пользователей из поиска (они должны выглядеть удаленными)
+  //this - указывает на текущий query
+  this.find({ active: { $ne: false } }); //не искать неактивных пользователей
   next();
 });
 

@@ -55,6 +55,15 @@ exports.updateMe = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.deleteMe = catchAsync(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user.id, { active: false }); //клиент залогинен, поэтому у нас есть его айди, находим по нему и меняем active на false. Таким образом аккаунт станет не активным (но не удаленным)
+
+  res.status(204).json({
+    status: 'success',
+    data: null, //не отправляем данные, 204 - нет данных (удалено)
+  });
+});
+
 exports.getUser = (req, res) => {
   res.status(500).json({
     //internal status error - 500

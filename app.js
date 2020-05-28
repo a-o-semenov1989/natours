@@ -1,5 +1,7 @@
 const express = require('express'); //ипмортируем экспресс
-const morgan = require('morgan');
+const morgan = require('morgan'); //Development logging
+const rateLimit = require('express-rate-limit'); //библиотека для ограничения запросов с одного айпи
+const helmet = require('helmet'); //Security HTTP headers
 
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./controllers/errorController');
@@ -8,16 +10,33 @@ const userRouter = require('./routes/userRoutes');
 
 const app = express(); //к переменнои app добавятся методы из экспресс
 
-//MIDDLEWARES //применяются ко всем routes
+//1) GLOBAL MIDDLEWARES //применяются ко всем routes
+//Set security HTTP headers
+app.use(helmet()); //надо располагать ближе к началу, а не к концу
+
+//Development logging
 //console.log(process.env.NODE_ENV); //production или development
 if (process.env.NODE_ENV === 'development') {
   //только в случае запуска приложения в режиме разработки
   app.use(morgan('dev')); //передаем аргумент, который определит как будет выглядеть логирование
 }
 
-app.use(express.json()); //middleware. данные из body парсятся из json и добавляются к объекту запроса //app.use чтобы использовать middleware express.json() //без него получили бы undefined
+//Limit requests from same IP
+const limiter = rateLimit({
+  //функция из библиотеки для ограничения количества запросов с одного айпи, принимает объект с опциями
+  max: 200, //количество попыток
+  windowMs: 60 * 60 * 1000, //в час
+  message: 'Too many requests from this IP, please try again in an hour!',
+});
+app.use('/api', limiter); //используем функцию лимитер только в отношении API
+
+//Body parser, reading data from body to req.body
+app.use(express.json({ limit: '10kb' })); //middleware. данные из body парсятся из json и добавляются к объекту запроса //app.use чтобы использовать middleware express.json() //без него получили бы undefined //передаем объект опцию, устанавливая ограничение в 10 кб
+
+//Serving static files
 app.use(express.static(`${__dirname}/public`)); //в браузере можно открыть 127.0.0.1:3000/overview.html и другие статичные фаилы, public - не указывается и он корневои
 
+//Test middleware
 app.use((req, res, next) => {
   //без указания route этот middleware будет применен ко всем запросам //middleware определяются до route handlers в коде
   //middleware, все имеют доступ к запросу и ответу, а также передается next (можно назвать по-другому) - тогда express будет знать что это middleware
