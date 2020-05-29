@@ -23,6 +23,7 @@ class APIFeatures {
 
   sort() {
     if (this.queryString.sort) {
+      //console.log(this.queryString.sort);
       //если пользователь указал sort
       const sortBy = this.queryString.sort.split(',').join(' '); //дополнительные опции  сортировки в url указываются через запятую -price,ratingsAverage //для mongoose, который ожидает строку с разделением пробелами - заменяем запятые на пробелы, для этого разделяем строку по запятым сплитом, и соединяем join обратно, разделитель пробел
       this.query = this.query.sort(sortBy); //подаставляем измененный query
