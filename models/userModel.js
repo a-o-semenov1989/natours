@@ -56,6 +56,7 @@ userSchema.pre('save', async function (next) {
   //Hash the password with cost of 12
   this.password = await bcrypt.hash(this.password, 12); //хэшируем пароль //12, 2 агумент - cost parameter для salt, разбавления пароля строкой. насколько CPU intensive будет эта операция //async версия функции, вернет промис
 
+  //Delete passwordConfirm field
   this.passwordConfirm = undefined; //удаляем поле с проверочным паролем, чтобы он не сохранился в БД, оригинальный уже хэширован //он required для инпута, а не для сохранения в БД
   next();
 });

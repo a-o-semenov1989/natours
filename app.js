@@ -1,3 +1,4 @@
+const path = require('path'); //встроенный модуль для манипулирования путями
 const express = require('express'); //ипмортируем экспресс
 const morgan = require('morgan'); //Development logging
 const rateLimit = require('express-rate-limit'); //библиотека для ограничения запросов с одного айпи
@@ -10,10 +11,18 @@ const AppError = require('./utils/appError');
 const globalErrorHandler = require('./controllers/errorController');
 const tourRouter = require('./routes/tourRoutes');
 const userRouter = require('./routes/userRoutes');
+const reviewRouter = require('./routes/reviewRoutes');
 
 const app = express(); //к переменнои app добавятся методы из экспресс
 
+//Set up pug engine
+app.set('view engine', 'pug'); //определяем template engine - pug //все происходит автоматичесчки, экспресс знает pug out of the box //pug templates = views
+app.set('views', path.join(__dirname, 'views')); //создает path присоединя директорию где расположены views в нашей файловой архитектуре
+
 //1) GLOBAL MIDDLEWARES //применяются ко всем routes
+//Serving static files
+app.use(express.static(path.join('public'))); //в браузере можно открыть 127.0.0.1:3000/overview.html и другие статичные фаилы, public - не указывается и он корневои //создает path присоединя директорию где расположен public
+
 //Set security HTTP headers
 app.use(helmet()); //надо располагать ближе к началу, а не к концу
 
@@ -58,9 +67,6 @@ app.use(
   })
 );
 
-//Serving static files
-app.use(express.static(`${__dirname}/public`)); //в браузере можно открыть 127.0.0.1:3000/overview.html и другие статичные фаилы, public - не указывается и он корневои
-
 //Test middleware
 app.use((req, res, next) => {
   //без указания route этот middleware будет применен ко всем запросам //middleware определяются до route handlers в коде
@@ -71,8 +77,30 @@ app.use((req, res, next) => {
 });
 
 //2)  ROUTES //middleware которые мы хотим применить к определенным routes
+//rendering template
+app.get('/', (req, res) => {
+  res.status(200).render('base', {
+    //рендерит темплейт с именем которое мы передаем, экспресс будет искать его в папке которую мы указали выше - views
+    tour: 'The Forest Hiker', //передаем объект с данными //эти переменные называются locals в pug file
+    user: 'Anatolii',
+  });
+});
+
+app.get('/overview', (req, res) => {
+  res.status(200).render('overview', {
+    title: 'All Tours',
+  });
+});
+
+app.get('/tour', (req, res) => {
+  res.status(200).render('tour', {
+    title: 'The Forest Hiker Tour',
+  });
+});
+
 app.use('/api/v1/tours', tourRouter); //mounting router //toursRouter это middleware / //api/v1/tours - parent route //используем router только после их объявления
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/reviews', reviewRouter);
 
 app.all('*', (req, res, next) => {
   //all - все http методы //* - все url (которые не обработаны вышестояющими хэндлерами) //если мы дошли до этои точки, то это значит что цикл запрос-ответ не был завершен //если поставить выше в нашем коде то на все запросы будет этот ответ

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
+//const User = require('./userModel');
 //const validator = require('validator'); //библиотека с валидаторами и санитаизерами
 
 const tourSchema = new mongoose.Schema(
@@ -80,6 +81,38 @@ const tourSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    startLocation: {
+      //GeoJSON - для спецификации геолокаций //embedded object, не объект опция //чтобы распознался как GeoJSON нужен тип и координаты
+      type: {
+        //эти объекты получают schema type objects каждый
+        type: String,
+        default: 'Point', //может быть Point (у нас по дефолту), Polygons, Lines or other geometries
+        enum: ['Point'], //допустимое значение у нас только 'Point'
+      },
+      coordinates: [Number], //ожидаем массив чисел (координаты). 1 - longitude, 2 - latitude //В гугл мапс координаты наоборот!!!
+      address: String,
+      description: String,
+    },
+    locations: [
+      //array of GeoJSON-s //embedded documents создаст документы внутри родительского документа Tour
+      {
+        type: {
+          type: String,
+          default: 'Point',
+          enum: ['Point'],
+        },
+        coordinates: [Number],
+        address: String,
+        description: String,
+        day: Number,
+      },
+    ],
+    guides: [
+      {
+        type: mongoose.Schema.ObjectId, //мы ожидаем что тип каждого элемента в массиве guides будет MongoDB id
+        ref: 'User', //reference: 'User' //устанавливаем reference между разными data sets в mongoose
+      },
+    ],
   },
   {
     toJSON: { virtuals: true }, //когда output в виде JSON - включить виртуальные своиства, они будут частью ответа
@@ -92,6 +125,13 @@ tourSchema.virtual('durationWeeks').get(function () {
   return this.duration / 7; //не стрелка, чтобы было this
 });
 
+//Virtual populate //Доступ ко всем рецензиям к конкретному туру без хранения массива ID рецензий в самом туре
+tourSchema.virtual('reviews', {
+  ref: 'Review', //reference
+  foreignField: 'tour', //имя поля в другой модели, где хранится референс к текущей модели //в данном случае поле tour в модели Review /и где хранится айди тура
+  localField: '_id', //где айди реально хранится здесь в модели Tour
+});
+
 //DOCUMENT MIDDLEWARE - pre запустится до команд .save() and .create(), но не на update(), и например insertMany(). Можно повлиять на документ до того как он сохранится в БД. post() - после созранения документа в БД
 //pre save hook
 tourSchema.pre('save', function (next) {
@@ -99,6 +139,15 @@ tourSchema.pre('save', function (next) {
   this.slug = slugify(this.name, { lower: true }); //this указывает на processed document //console.log(this)
   next(); //вызывает следующи middleware
 }); //pre - pre middleware, запустится до ивента, в данном случае - save
+
+/*
+//EMBEDDING // для создания новых документов с embedded документами в них, не для update
+tourSchema.pre('save', async function (next) {
+  const guidesPromises = this.guides.map(async (id) => await User.findById(id)); //проходим циклом по инпуту - массиву guides (user id) и на каждой итерации получаем user документ для текущего айди //получаем массив промисов
+  this.guides = await Promise.all(guidesPromises); //ждем ответа всех промисов и перезаписываем значение массива this.guides (user id) массивом user documents
+  next();
+});
+*/
 
 /*
 tourSchema.pre('save', function (next) {
@@ -121,6 +170,16 @@ tourSchema.pre(/^find/, function (next) {
   this.find({ secretTour: { $ne: true } });
   this.start = Date.now();
   next(); //this теперь указывает на query, а не на документ
+});
+
+tourSchema.pre(/^find/, function (next) {
+  this.populate({
+    //this - current query
+    //populate('guides') для reference чтобы в туре показало гидов /заполняем поле guides в нашей модели данными, которое изначально содержит лишь reference - только в query, а не в БД //populate('guides') - целиком, или populate({}) - и объект с опциями какие поля надо
+    path: 'guides',
+    select: '-__v -passwordChangedAt', //'-' какие поля убрать из отображения
+  });
+  next();
 });
 
 tourSchema.post(/^find/, function (docs, next) {

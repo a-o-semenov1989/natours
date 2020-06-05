@@ -1,7 +1,7 @@
 const Tour = require('../models/tourModel');
-const APIFeatures = require('../utils/apiFeatures');
 const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/appError');
+//const AppError = require('../utils/appError');
+const factory = require('./handlerFactory');
 
 exports.aliasTopTours = async (req, res, next) => {
   //функция выставит все нужные для показа топ 5 туров свойства в query object до срабатывания getAllTours
@@ -11,6 +11,7 @@ exports.aliasTopTours = async (req, res, next) => {
   next();
 };
 
+/*
 exports.getAllTours = catchAsync(async (req, res, next) => {
   //EXECUTE QUERY
   const features = new APIFeatures(Tour.find(), req.query)
@@ -31,9 +32,13 @@ exports.getAllTours = catchAsync(async (req, res, next) => {
     },
   });
 });
+*/
+exports.getAllTours = factory.getAll(Tour);
 
+/*
 exports.getTour = catchAsync(async (req, res, next) => {
-  const tour = await Tour.findById(req.params.id); //используем метод findById, id берем из роута req.params.id // Tour.findOne({ _id: req.params.id})
+  //используем метод findById, id берем из роута req.params.id // Tour.findOne({ _id: req.params.id})
+  const tour = await Tour.findById(req.params.id).populate('reviews'); //populate чтобы показало рецензии к этому туру, virtual populate, reviews - имя поля которое мы хотим заполнить
   //Tour.findOne({ _id: req.params.id }); //behind the scenes
 
   if (!tour) {
@@ -48,7 +53,10 @@ exports.getTour = catchAsync(async (req, res, next) => {
     },
   });
 });
+*/
+exports.getTour = factory.getOne(Tour, { path: 'reviews' }); //передаем модель и popOptios - к какому полю применить populate //сюда же можно select, чтобы определить какие поля показать
 
+/*
 exports.createTour = catchAsync(async (req, res, next) => {
   //const newTour = new Tour({}); //newTour создается по модели Tour и у него есть доступ к методам, поскольку это часть прототипа объектов этого класса
   //newTour.save() // Model.prototype.save() //применяем метод сэйв к документу newTour созданному по модели Tour, а не к модели
@@ -63,7 +71,10 @@ exports.createTour = catchAsync(async (req, res, next) => {
     },
   }); //201 статус - создан новыи ресурс на сервере //catch вынесен в catchAsync
 }); //всегда нужно отправить обратно что-нибудь чтобы завершить цикл запрос/ответ
+*/
+exports.createTour = factory.createOne(Tour);
 
+/*
 exports.updateTour = catchAsync(async (req, res, next) => {
   const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, {
     //первым аргументом в чем заменить, вторым - что, третий - опции
@@ -83,7 +94,10 @@ exports.updateTour = catchAsync(async (req, res, next) => {
     },
   });
 });
+*/
+exports.updateTour = factory.updateOne(Tour); //передаем модель //вернет другую функцию, которая будет ожидать вызова
 
+/*
 exports.deleteTour = catchAsync(async (req, res, next) => {
   const tour = await Tour.findByIdAndDelete(req.params.id);
 
@@ -98,6 +112,8 @@ exports.deleteTour = catchAsync(async (req, res, next) => {
     data: null, //после удаления данные не отправляются, показываем что удаленный ресурс больше не существует
   });
 });
+*/
+exports.deleteTour = factory.deleteOne(Tour); //передаем модель //вернет другую функцию, которая будет ожидать вызова
 
 //aggregation pipeline
 exports.getTourStats = catchAsync(async (req, res, next) => {
