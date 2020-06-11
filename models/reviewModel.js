@@ -49,6 +49,27 @@ reviewSchema.pre(/^find/, function (next) {
   next();
 });
 
+//Static method. В статитчных методах this указывает на Модель
+reviewSchema.statics.calcAverageRatings = async function (tourId) {
+  //tour = tour id тура, к которому относятся review
+  const stats = await this.aggregate([
+    //this - текущая модель //aggregate всегда на Модель
+    {
+      //1 стадия - выбрать все review, относящихся к данному туру
+      $match: { tour: tourId }, //tour: tour
+    },
+    {
+      //2 стадия - group stage - подстчет статистики
+      $group: {
+        _id: '$tour', //группируем review по туру
+        nRating: { $sum: 1 }, //добавляем по 1 за каждую рецензию к туру, который matched на предыдущем шаге
+        avgRating: { $avg: '$rating' }, //подсчет среднего значения поля rating
+      },
+    },
+  ]);
+  console.log(stats); //8-24
+};
+
 const Review = mongoose.model('Review', reviewSchema);
 
 module.exports = Review;

@@ -120,6 +120,9 @@ const tourSchema = new mongoose.Schema(
   }
 ); //1 объект - schema definiton, 2 - options
 
+tourSchema.index({ price: 1, ratingsAverage: -1 }); //compound index, работает вместе и по отдельности для перечисленных полей
+tourSchema.index({ slug: 1 }); //создаем индекс для поля, поскольку это поле будет часто критерием поиска, для оптимизации поиска //1 или -1, 1 сортировка в возрастающем порядке и -1 в убывающем
+
 tourSchema.virtual('durationWeeks').get(function () {
   //virtual property - создается каждыи раз когда мы получаем данные из БД
   return this.duration / 7; //не стрелка, чтобы было this
