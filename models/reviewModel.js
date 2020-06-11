@@ -53,17 +53,11 @@ reviewSchema.pre(/^find/, function (next) {
   next();
 });
 
-<<<<<<< HEAD
 //Static method. В статитчных методах this указывает на Модель. Вызываются на Модель
 //Создали как статичный метод, поскольку нам нужно вызвать aggregate функцию на модели. Этот статичный метод считает среднюю оценку отзывов и количество отзывов по заданному по айди туру для которого был создан отзыв
 reviewSchema.statics.calcAverageRatings = async function (tourId) {
   //tour = tour id тура, к которому относятся review
   //console.log(tourId);
-=======
-//Static method. В статитчных методах this указывает на Модель
-reviewSchema.statics.calcAverageRatings = async function (tourId) {
-  //tour = tour id тура, к которому относятся review
->>>>>>> 6252e1830c463027e9d280e05c30170cf280c484
   const stats = await this.aggregate([
     //this - текущая модель //aggregate всегда на Модель
     {
@@ -79,7 +73,6 @@ reviewSchema.statics.calcAverageRatings = async function (tourId) {
       },
     },
   ]);
-<<<<<<< HEAD
   //console.log(stats); //покажет массив со сгруппированной статистикой
   //3) сохраняем полученные данные в коллекцию туров
   if (stats.length > 0) {
@@ -119,11 +112,6 @@ reviewSchema.post(/^findOneAnd/, async function () {
   await this.r.constructor.calcAverageRatings(this.r.tour); //this.r здесь эквивалентен this в this.constructor.calcAverageRatings(this.tour);
 });
 
-=======
-  console.log(stats); //8-24
-};
-
->>>>>>> 6252e1830c463027e9d280e05c30170cf280c484
 const Review = mongoose.model('Review', reviewSchema);
 
 module.exports = Review;
