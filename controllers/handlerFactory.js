@@ -85,7 +85,8 @@ exports.getAll = (Model) =>
       .sort()
       .limitFields()
       .paginate(); //будут все методы из класса APIFeatures //передаем ему query - Tour.find() //передаем ему queryString - req.query //создаем цепочку из query
-    const doc = await features.query; //query хранится в свойстве query
+    const doc = await features.query; //query хранится в свойстве query //метод explain - вызовется после query
+    //const doc = await features.query.explain(); //query хранится в свойстве query //метод explain - вызовется после query и покажет много информации о выполнении
 
     //SEND RESPONSE
     res.status(200).json({

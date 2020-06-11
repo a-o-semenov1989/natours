@@ -38,6 +38,7 @@ const tourSchema = new mongoose.Schema(
       default: 4.5, //по-умолчанию, если мы не указываем значение, то реитинг будет 4.5
       min: [1, 'Rating must be above 1.0'], //валидатор для чисел и дат
       max: [5, 'Rating must be below 5.0'], //валидатор для чисел и дат
+      set: (val) => Math.round(val * 10) / 10, //setter, колбэк будет вызываться каждый раз когда новое значение приписывается этому полю// округлить значение, трюк Math.round(val * 10) - Math.round(val) округлит 4,66667 как 5, а так как написано *10 будет 46,6667, окргулится до 47, делим на 10 и получаем то что нужно - 4,7
     },
     ratingsQuantity: {
       type: Number,
@@ -119,6 +120,9 @@ const tourSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 ); //1 объект - schema definiton, 2 - options
+
+tourSchema.index({ price: 1, ratingsAverage: -1 }); //compound index, работает вместе и по отдельности для перечисленных полей
+tourSchema.index({ slug: 1 }); //создаем индекс для поля, поскольку это поле будет часто критерием поиска, для оптимизации поиска //1 или -1, 1 сортировка в возрастающем порядке и -1 в убывающем
 
 tourSchema.virtual('durationWeeks').get(function () {
   //virtual property - создается каждыи раз когда мы получаем данные из БД

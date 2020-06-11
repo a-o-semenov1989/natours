@@ -30,6 +30,8 @@ router.route('/monthly-plan/:year').get(
   tourController.getMonthlyPlan
 );
 
+router.route('/tours-within');
+
 router
   .route('/') //это рут URL /api/v1/tours поэтому просто /
   .get(tourController.getAllTours)
