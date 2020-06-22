@@ -30,7 +30,13 @@ router.route('/monthly-plan/:year').get(
   tourController.getMonthlyPlan
 );
 
-router.route('/tours-within');
+router
+  .route('/tours-within/:distance/center/:latlng/unit/:unit')
+  .get(tourController.getToursWithin); //geospatial query //:distance - расстояние на котором искать от нас, center - где находимся, :latlng - координаты (широта и долгота) места где находимся //unit - единицы измерения, мили или климетры
+// /tours-within/233/center/-40,45/unit/mi
+// /tours-within/233/center/34.1111745,-118.113491/unit/mi - в таком виде будет query
+
+router.route('/distances/:latlng/unit/:unit').get(tourController.getDistances);
 
 router
   .route('/') //это рут URL /api/v1/tours поэтому просто /

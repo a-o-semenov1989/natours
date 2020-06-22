@@ -68,6 +68,15 @@ exports.login = catchAsync(async (req, res, next) => {
   createSendToken(user, 200, res);
 });
 
+//Поскольку используется httpOnly cookie, мы не можем удалить его в браузере напрямую, отправим куки с таким же именем, но без токена и с коротким сроком годности
+exports.logout = (req, res) => {
+  res.cookie('jwt', 'logged out', {
+    expires: new Date(Date.now() + 10 * 1000),
+    httpOnly: true,
+  }); //куки с таким же именем перезапишет куки с jwt, вместо jwt у нас dummy текст и опции - 10 сек срок давности и httpOnly
+  res.status(200).json({ status: 'success' });
+};
+
 exports.protect = catchAsync(async (req, res, next) => {
   //1) Получение токена и проверка его
   let token;
@@ -76,6 +85,9 @@ exports.protect = catchAsync(async (req, res, next) => {
     req.headers.authorization.startsWith('Bearer') //строка его значения начинается с Bearer
   ) {
     token = req.headers.authorization.split(' ')[1]; //вытягиваем токен: разделяем строку по пробелу и берем второй элемент полученного массива
+  } else if (req.cookies.jwt) {
+    //если не было токена в authorization header, тогда обратить внимание на куки
+    token = req.cookies.jwt; //если есть куки - присвоить токену jwt из куки
   }
   //console.log(token);
 
@@ -107,8 +119,42 @@ exports.protect = catchAsync(async (req, res, next) => {
   } //iat - issued at, когда выписан токен
 
   req.user = currentUser; //присваиваем данные и сохраняем для передачи в следующии middleware
+  res.locals.user = currentUser; //помещаем пользователя в res.locals и передаем локал в pug template
   next(); //В случае если все проверки выше успешны - next() вызовется и даст доступ к защищенным роутам
 });
+
+//Only for rendered pages, no errors
+exports.isLoggedIn = async (req, res, next) => {
+  if (req.cookies.jwt) {
+    try {
+      //1) Верификация токена
+      const decoded = await promisify(jwt.verify)(
+        req.cookies.jwt,
+        process.env.JWT_SECRET
+      ); //promisify вернет промис// в результате значением промиса будут декодированные данные (decoded payload from JWT) and save to decoded //передаем токен и для создания тестовой подписи нужно передать секрет
+      //console.log(decoded);
+
+      //2) Проверить существует ли еще пользователь
+      //Если мы дошли до этой стадии - верификация была успешна до этой стадии и мы уверены что пользователь верный, теперь нужно проверить существует ли он еще в БД
+      const currentUser = await User.findById(decoded.id); //ищем пользователя по айди, полученному в результате декодирования токена
+      if (!currentUser) {
+        return next();
+      }
+
+      //3) Проверить менял ли пользователь пароль после выписки JWT
+      if (currentUser.changedPasswordAfter(decoded.iat)) {
+        return next();
+      } //iat - issued at, когда выписан токен
+
+      //ЕСТЬ ЗАЛОГИНЕННЫЙ ПОЛЬЗОВАТЕЛЬ
+      res.locals.user = currentUser; //помещаем пользователя в res.locals и передаем локал в pug template
+      return next(); //В случае если все проверки выше успешны - next()
+    } catch (err) {
+      return next(); //если есть ошибки - перейти к следующей middleware
+    }
+  }
+  next(); //если нету куки - next(), нету залогиненного пользователя, запустить следующую middleware
+};
 
 exports.restrictTo = (...roles) => {
   //создаст массив аргументов, которые мы указываем //оборачиваем в функцию чтобы передать аргументы в middleware, напрямую нельзя

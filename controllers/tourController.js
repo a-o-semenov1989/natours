@@ -1,6 +1,6 @@
 const Tour = require('../models/tourModel');
 const catchAsync = require('../utils/catchAsync');
-//const AppError = require('../utils/appError');
+const AppError = require('../utils/appError');
 const factory = require('./handlerFactory');
 
 exports.aliasTopTours = async (req, res, next) => {
@@ -191,6 +191,87 @@ exports.getMonthlyPlan = catchAsync(async (req, res, next) => {
     status: 'success',
     data: {
       plan,
+    },
+  });
+});
+
+//To do geospatial queries we need to first attribute index to the field where geospatial data that we are searching for is stored (in our case - add index to startLocation)
+// /tours-within/:distance/center/:latlng/unit/:unit
+// /tours-within/233/center/34.1111745,-118.113491/unit/mi - в таком виде будет query
+exports.getToursWithin = catchAsync(async (req, res, next) => {
+  const { distance, latlng, unit } = req.params; //получаем нужные параметры из params запроса при помощи деструктуризации
+  const [lat, lng] = latlng.split(','); //разделяем координаты по запятой - получим список из 2 элементов и сохраняем в переменные
+
+  const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1; //определяем радиус - расстояние которое нам нужно как радиус, конвертированное в unit - radians - для этого делим наше расстояние на радиус Земли //тернарный оператор - если в милях делим на 3963.2, если в км - делим на 6378,1
+
+  if (!lat || !lng) {
+    //если отсутствует одна из координат или обе
+    next(
+      new AppError(
+        'Please provide latitude and longitude in the format lat,lng',
+        400
+      )
+    );
+  }
+  //console.log(distance, lat, lng, unit);
+
+  const tours = await Tour.find({
+    //startLocation - geospatial point //operator geoWithin - ищет документы внутри определенной геометрии
+    startLocation: { $geoWithin: { $centerSphere: [[lng, lat], radius] } },
+  }); // Чтобы найти внутри определенного радиуса - определяем радиус при помощи $centerSphere - он принимает массив с координатами (тоже массив) и радиусом (receive radians)
+
+  res.status(200).json({
+    status: 'success',
+    results: tours.length,
+    data: {
+      data: tours,
+    },
+  });
+});
+
+exports.getDistances = catchAsync(async (req, res, next) => {
+  const { latlng, unit } = req.params; //получаем нужные параметры из params запроса при помощи деструктуризации
+  const [lat, lng] = latlng.split(','); //разделяем координаты по запятой - получим список из 2 элементов и сохраняем в переменные
+
+  const multiplier = unit === 'mi' ? 0.000621371 : 0.001; //число на которое будут умножены все расстояния //если мили - переводим метры в мили, если км - переводим метры в км //* 0.001 - так поделится на 1000 и из метров получим километры
+
+  if (!lat || !lng) {
+    //если отсутствует одна из координат или обе
+    next(
+      new AppError(
+        'Please provide latitude and longitude in the format lat,lng',
+        400
+      )
+    );
+  }
+
+  const distances = await Tour.aggregate([
+    {
+      $geoNear: {
+        //в geospatial aggregation pipeline 1 стадия. Всегда должна быть первой в пайплайне. Нужно чтобы хотя бы одно из наших полей включало geospatial index, если только одно поле - автоматически будет использоваться для рассчетов
+        //2 обязательных поля в geoNear:
+        near: {
+          //geoJSON, свойство - мы передаем его в lat lng - откуда рассчитывать дистанции. Все рассчеты будет между этой точкой, которую мы определяем тут и стартовыми локациями
+          type: 'Point',
+          coordinates: [lng * 1, lat * 1], //*1 - конвертируем в числа
+        },
+        distanceField: 'distance', //свойство которое будет создано и где все рассчеты расстояний будут хранится
+        distanceMultiplier: multiplier, //число на которое будут умножены все расстояния
+      },
+    },
+    {
+      $project: {
+        //следующая стадия, определяем какие поля показывать
+        distance: 1, //1 - показывать
+        name: 1,
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      data: distances,
     },
   });
 });

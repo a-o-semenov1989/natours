@@ -6,12 +6,14 @@ const helmet = require('helmet'); //Security HTTP headers
 const mongoSanitize = require('express-mongo-sanitize'); //Data sanitization against NoSQL query injection
 const xss = require('xss-clean'); //Data sanitization against XSS
 const hpp = require('hpp'); //Prevent parameter pollution
+const cookieParser = require('cookie-parser'); //parses the data from the cookie
 
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./controllers/errorController');
 const tourRouter = require('./routes/tourRoutes');
 const userRouter = require('./routes/userRoutes');
 const reviewRouter = require('./routes/reviewRoutes');
+const viewRouter = require('./routes/viewRoutes');
 
 const app = express(); //к переменнои app добавятся методы из экспресс
 
@@ -44,6 +46,8 @@ app.use('/api', limiter); //используем функцию лимитер �
 
 //Body parser, reading data from body to req.body
 app.use(express.json({ limit: '10kb' })); //middleware. данные из body парсятся из json и добавляются к объекту запроса //app.use чтобы использовать middleware express.json() //без него получили бы undefined //передаем объект опцию, устанавливая ограничение в 10 кб
+//Cookie parser
+app.use(cookieParser()); //parses the data from the cookies
 
 //Data sanitization against NoSQL query injection
 app.use(mongoSanitize()); //фильтрует и убирает спец символы ($ и т.д.)
@@ -73,31 +77,12 @@ app.use((req, res, next) => {
   //middleware, все имеют доступ к запросу и ответу, а также передается next (можно назвать по-другому) - тогда express будет знать что это middleware
   //console.log(req.headers); //показать хедер запроса
   req.requestTime = new Date().toISOString(); //ко всем реквестам добавится время //new Date = сейчас, toISOString сделает читабельную строку
+  console.log(req.cookies); //на каждом запросе показывает куки в консоли
   next(); //если не использовать next в middleware - не будет завершен цикл запрос/ответ и ответ не будет отправлен клиенту
 });
 
 //2)  ROUTES //middleware которые мы хотим применить к определенным routes
-//rendering template
-app.get('/', (req, res) => {
-  res.status(200).render('base', {
-    //рендерит темплейт с именем которое мы передаем, экспресс будет искать его в папке которую мы указали выше - views
-    tour: 'The Forest Hiker', //передаем объект с данными //эти переменные называются locals в pug file
-    user: 'Anatolii',
-  });
-});
-
-app.get('/overview', (req, res) => {
-  res.status(200).render('overview', {
-    title: 'All Tours',
-  });
-});
-
-app.get('/tour', (req, res) => {
-  res.status(200).render('tour', {
-    title: 'The Forest Hiker Tour',
-  });
-});
-
+app.use('/', viewRouter); //mounted on root URL
 app.use('/api/v1/tours', tourRouter); //mounting router //toursRouter это middleware / //api/v1/tours - parent route //используем router только после их объявления
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reviews', reviewRouter);

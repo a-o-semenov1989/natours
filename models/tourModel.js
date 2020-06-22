@@ -123,6 +123,7 @@ const tourSchema = new mongoose.Schema(
 
 tourSchema.index({ price: 1, ratingsAverage: -1 }); //compound index, работает вместе и по отдельности для перечисленных полей
 tourSchema.index({ slug: 1 }); //создаем индекс для поля, поскольку это поле будет часто критерием поиска, для оптимизации поиска //1 или -1, 1 сортировка в возрастающем порядке и -1 в убывающем
+tourSchema.index({ startLocation: '2dsphere' }); //index for geospatial data, 2d sphere index for real points on Earth-like sphere, or 2d index for fictional points on 2 dimensional plane
 
 tourSchema.virtual('durationWeeks').get(function () {
   //virtual property - создается каждыи раз когда мы получаем данные из БД
@@ -192,6 +193,7 @@ tourSchema.post(/^find/, function (docs, next) {
   next();
 });
 
+/* отключил, поскольку оказывается первой стадией в пайплайне и не дает работать geoNear (должна быть первой стадией всегда)
 //AGGREGATION MIDDLEWARES
 tourSchema.pre('aggregate', function (next) {
   //aggregate hook
@@ -200,6 +202,7 @@ tourSchema.pre('aggregate', function (next) {
   console.log(this); //this указывает на текущии aggregation object //console.log(this.pipeline()) - pipeline object
   next();
 });
+*/
 
 const Tour = mongoose.model('Tour', tourSchema); //создаем модель, передается нужное имя и схема
 

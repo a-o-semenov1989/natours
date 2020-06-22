@@ -1,7 +1,7 @@
 const AppError = require('../utils/appError');
 
 const handleCastErrorDB = (err) => {
-  //передаемerr
+  //передаем err
   const message = `Invalid ${err.path}: ${err.value}.`; //используем данные из err
   return new AppError(message, 400); //возвращаем новый эррор созданный по классу, и передаем сообщение и код ошибки
 };
@@ -27,33 +27,62 @@ const handleJWTError = () =>
 const handleJWTExpiredError = () =>
   new AppError('Your token has expired! Please log in again.', 401);
 
-const sendErrorDev = (err, res) => {
-  //передаем err и res, res чтобы отправить ответ
-  res.status(err.statusCode).json({
-    status: err.status,
-    error: err,
-    message: err.message,
-    stack: err.stack,
+const sendErrorDev = (err, req, res) => {
+  //передаем err, req и res, res чтобы отправить ответ
+  //1) API
+  if (req.originalUrl.startsWith('/api')) {
+    //originalUrl - это url целиком, но без хоста - выглядит как роут. Когда url начинается с api - отправить эррор в виде json
+    return res.status(err.statusCode).json({
+      status: err.status,
+      error: err,
+      message: err.message,
+      stack: err.stack,
+    });
+  }
+  //2) RENDERED WEBSITE
+  //если не начинается с АПИ - рендерим эррор
+  console.error('ERROR', err);
+  return res.status(err.statusCode).render('error', {
+    title: 'Something went wrong!',
+    msg: err.message,
   });
 };
 
-const sendErrorProd = (err, res) => {
-  if (err.isOperational) {
-    //только в случае если это операционный эррор (которому мы доверяем) мы отправим клиенту сообщение
-    res.status(err.statusCode).json({
-      status: err.status,
-      message: err.message,
-    });
-  } else {
-    //програмный или другой тип эррора - отправляем стандартный еррор с 500 и не сообщаем клиенту деталей ошибки
+const sendErrorProd = (err, req, res) => {
+  //I) API
+  if (req.originalUrl.startsWith('/api')) {
+    if (err.isOperational) {
+      //A) только в случае если это операционный эррор (которому мы доверяем) мы отправим клиенту сообщение
+      return res.status(err.statusCode).json({
+        status: err.status,
+        message: err.message,
+      });
+    }
+    //B) програмный или другой тип эррора - отправляем стандартный еррор с 500 и не сообщаем клиенту деталей ошибки
     //1) лог в консоль
     console.error('ERROR', err);
     //2) Отправляем стандартное сообщение без деталей клиенту
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Something went very wrong!',
     });
   }
+  //II) RENDERED WEBSITE
+  //A) только в случае если это операционный эррор (которому мы доверяем) мы отправим клиенту сообщение
+  if (err.isOperational) {
+    return res.status(err.statusCode).render('error', {
+      title: 'Something went wrong!',
+      msg: err.message,
+    });
+  }
+  //B) програмный или другой тип эррора - отправляем стандартный еррор с 500 и не сообщаем клиенту деталей ошибки
+  //1) лог в консоль
+  console.error('ERROR', err);
+  //2) Отправляем стандартное сообщение без деталей клиенту
+  return res.status(err.statusCode).render('error', {
+    title: 'Something went wrong!',
+    msg: 'Please try again later',
+  });
 };
 
 module.exports = (err, req, res, next) => {
@@ -62,9 +91,10 @@ module.exports = (err, req, res, next) => {
   err.status = err.status || 'error'; //при 500 - error, 400 - fail
 
   if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res); //вызываем функцию sendErrorDev с эррором и ответом
+    sendErrorDev(err, req, res); //вызываем функцию sendErrorDev с эррором и ответом
   } else if (process.env.NODE_ENV === 'production') {
     let error = { ...err }; //создаем хард копию, используя децентрализацию, и используем ее ниже
+    error.message = err.message; //чтобы в копии корректно скопировалось сообщение об ошибке из оригинального эррора
 
     if (error.name === 'CastError') error = handleCastErrorDB(error); //передаем эррор в случае CastError (увидели name в err в консоли или postman), - вернет новый эррор, созданный с нашего класса AppError, с отметкой операционного error, сохраняем в error
     if (error.code === 11000) error = handleDuplicateFieldsDB(error); //код ошибки MongoDB одинаковое имя, валидатор unique (увидели code в err в консоли или postman)
@@ -72,6 +102,6 @@ module.exports = (err, req, res, next) => {
       error = handleValidationErrorDB(error);
     if (error.name === 'JsonWebTokenError') error = handleJWTError();
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
-    sendErrorProd(error, res);
+    sendErrorProd(error, req, res);
   }
 }; //4 аргумента - express узнает что это error handling middleware - вызовется только в случае ошибки
