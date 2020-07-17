@@ -256,6 +256,6 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   user.passwordConfirm = req.body.passwordConfirm;
   await user.save();
 
-  //4) Log in user, отправить JWT
+  //4) Log in user, отправить JWT //Чтобы пользователь остался залогиненным после смены пароля
   createSendToken(user, 200, res);
 });

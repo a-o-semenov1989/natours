@@ -1,7 +1,71 @@
+const multer = require('multer'); //for user photo upload
+const sharp = require('sharp'); //image processing library
 const Tour = require('../models/tourModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const factory = require('./handlerFactory');
+
+const multerStorage = multer.memoryStorage(); //сохраняем в память. доступно из буфера - req.file.buffer
+
+const multerFilter = (req, file, cb) => {
+  //Определяет является ли загружаемый файл изображением, если файл это изображение - true, если нет - false с эррором. Можно не только для изображения (в других случаях и проэктах)
+  if (file.mimetype.startsWith('image')) {
+    //если начинается с image (независимо от расширения - все изображения)
+    cb(null, true);
+  } else {
+    cb(new AppError('Not an image! Please upload only images.', 400), false);
+  }
+};
+
+const upload = multer({
+  storage: multerStorage,
+  fileFilter: multerFilter,
+}); //передаем объект с опциями - назначение и фильтр //можно без опций и без папки назначения - тогда загруженные изображения будут хранится в памяти, а не сохранятся на диск
+
+exports.uploadTourImages = upload.fields([
+  //передаем массив с объектами, в которых указано имя поля и сколько полеи может быть
+  { name: 'imageCover', maxCount: 1 },
+  { name: 'images', maxCount: 3 },
+]); //fields - когда есть например одно поле и несколько полеи с одиноковым именем
+//upload.single('image') //когда одно поле с фаилом //console.log(req.file); //один фаил
+//upload.array('images', maxCount: 5) //когда несколько полеи с одиноковым именем
+
+exports.resizeTourImages = catchAsync(async (req, res, next) => {
+  // console.log(req.files); //files когда несколько файлов
+
+  if (!req.files.imageCover || !req.files.images) return next(); //если нет обложки или изображении - переити к следующеи middleware
+
+  // 1) Cover image
+  //в случае обработки файла перед сохранением - лучше сначала сохранить его в памяти, а потом на диск
+  req.body.imageCover = `tour-${req.params.id}-${Date.now()}-cover.jpeg`; //имя - аиди берем из парамс роута (он всегда его будет содержать) + отпечаток времени + слово cover чтобы обозначить обложку тура //updateTour обновит все что будет в req.body, поэтому сохраняем значения поля в нем. imageCover потому что так в схеме называется поле
+  await sharp(req.files.imageCover[0].buffer) //получаем загруженный файл (это массив, 1 его элемент) из буффера
+    .resize(2000, 1333) //меняем его размер на пропорцию 2/3
+    .toFormat('jpeg') //меняем формат на jpeg
+    .jpeg({ quality: 90 }) //качество 90% от исходного
+    .toFile(`public/img/tours/${req.body.imageCover}`); //сохраняем итоговый файл на диск
+
+  // 2) Images
+  req.body.images = []; //создаем пустои массив
+  await Promise.all(
+    //используя мап мы получим массив промисов - и если их не подождать все, в массив изображении в документе не запушатся элементы
+    req.files.images.map(async (file, i) => {
+      //проходимся циклом по массиву изображении, передаем фаил и индекс
+      const filename = `tour-${req.params.id}-${Date.now()}-${i + 1}.jpeg`; //имя - индекс + 1 (он с 0)
+
+      await sharp(file.buffer) //получаем загруженный файл на каждои итерации из буффера
+        .resize(2000, 1333) //меняем его размер на пропорцию 2/3
+        .toFormat('jpeg') //меняем формат на jpeg
+        .jpeg({ quality: 90 }) //качество 90% от исходного
+        .toFile(`public/img/tours/${filename}`); //сохраняем итоговый файл на диск
+
+      //filename нужен поскольку пушим его в req.body.images (в коллекции он массив)
+      req.body.images.push(filename); //на каждои итерации пушим элемент в массив
+    })
+  );
+
+  //console.log(req.body);
+  next();
+});
 
 exports.aliasTopTours = async (req, res, next) => {
   //функция выставит все нужные для показа топ 5 туров свойства в query object до срабатывания getAllTours
