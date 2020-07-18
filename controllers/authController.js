@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync'); //чтобы не писать try-catch block используем catchAsync
 const AppError = require('../utils/appError');
-const sendEmail = require('../utils/email');
+const Email = require('../utils/email');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -45,6 +45,11 @@ exports.signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
     photo: req.body.photo,
   }); //данные получаем из req.body и создаем нового пользователя по нашей модели, которая базируется на схеме //нельзя просто req.body, нужно указывать какие именно поля, которые мы позволяем и которые нужно положить в нового пользователя, так пользователь не сможет зарегистрироваться как админ, поскольку поле с ролью не пойдет в newUser
+
+  const url = `${req.protocol}://${req.get('host')}/me`; //url for email to upload a photo //get protocol from request and get host from req
+  console.log(url);
+  await new Email(newUser, url).sendWelcome(); //send welcome email to new user
+
   createSendToken(newUser, 201, res); //201 - успех. отправляем данные клиенту
 });
 
@@ -190,12 +195,12 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 
   try {
     //нужен try catch блок, поскольку мы не просто отправляем эррор клиенту
-    await sendEmail({
-      //вернет промис
-      email: user.email,
-      subject: 'Your password reset token (valid for 10 min)',
-      message,
-    });
+    // await Email({
+    //   //вернет промис
+    //   email: user.email,
+    //   subject: 'Your password reset token (valid for 10 min)',
+    //   message,
+    // });
 
     res.status(200).json({
       status: 'success',
